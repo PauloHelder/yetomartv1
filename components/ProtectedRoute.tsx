@@ -8,12 +8,21 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isLoggedIn, login } = useAuth();
+  const { isLoggedIn, loading } = useAuth();
   const location = useLocation();
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <div className="text-white font-black uppercase tracking-[0.3em] animate-pulse">
+          Verificando Acesso...
+        </div>
+      </div>
+    );
+  }
+
   if (!isLoggedIn) {
-    // We could automatically trigger login or redirect to a landing page
-    return <Navigate to="/" state={{ from: location }} replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return <>{children}</>;

@@ -1,30 +1,51 @@
-
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Logo from '../components/Logo';
 
 const Login: React.FC = () => {
-  const { login } = useAuth();
+  const { login, authError, clearError } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { isLoggedIn } = useAuth();
+  const location = useLocation();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (isLoggedIn) {
+      // Redireciona para onde o utilizador estava a tentar ir, ou para o dashboard por padrão
+      const from = (location.state as any)?.from?.pathname || '/dashboard';
+      navigate(from, { replace: true });
+    }
+  }, [isLoggedIn, navigate, location]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    login();
-    navigate('/dashboard');
+    setLoading(true);
+    
+    // Safety timeout: if server doesn't respond in 12s, release the button
+    const timeout = setTimeout(() => {
+      setLoading(false);
+      clearError();
+      // Only set error if we are still loading
+    }, 12000);
+
+    try {
+      console.log('🚀 Iniciando login para:', email);
+      await login(email, password);
+    } catch (err: any) {
+      console.error('❌ Falha no submit:', err);
+    } finally {
+      clearTimeout(timeout);
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen relative flex flex-col justify-center py-12 sm:px-6 lg:px-8 overflow-hidden">
-      {/* Background Image with Overlay */}
       <div className="absolute inset-0 z-0">
-        <img 
-          src="https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=80&w=2069&auto=format&fit=crop" 
-          className="w-full h-full object-cover opacity-40 grayscale"
-          alt=""
-        />
+        <img src="https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=80&w=2069&auto=format&fit=crop" className="w-full h-full object-cover opacity-40 grayscale" alt="" />
         <div className="absolute inset-0 bg-[#0f172a]/80"></div>
       </div>
 
@@ -37,72 +58,28 @@ const Login: React.FC = () => {
       <div className="relative z-10 mt-4 sm:mx-auto sm:w-full sm:max-w-[450px]">
         <div className="bg-white/5 py-16 px-4 sm:rounded-md sm:px-16 border border-white/5 backdrop-blur-md shadow-2xl">
           <h2 className="text-3xl font-black text-white mb-8 font-serif italic">Entrar</h2>
+          
+          {authError && (
+             <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-sm text-red-500 text-sm font-medium flex justify-between">
+                <span>{authError}</span>
+                <button onClick={clearError} className="opacity-80 hover:opacity-100">✕</button>
+             </div>
+          )}
+
           <form className="space-y-6" onSubmit={handleSubmit}>
-            <div>
-              <div className="mt-1">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="E-mail ou número de telefone"
-                  className="appearance-none block w-full px-5 py-4 bg-white/5 border border-white/10 rounded-sm text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-yetomart-teal sm:text-sm transition-all"
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="mt-1">
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Senha"
-                  className="appearance-none block w-full px-5 py-4 bg-white/5 border border-white/10 rounded-sm text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-yetomart-teal sm:text-sm transition-all"
-                />
-              </div>
-            </div>
-
-            <div>
-              <button
-                type="submit"
-                className="w-full flex justify-center py-4 px-4 border border-transparent rounded-sm shadow-lg text-base font-black text-white bg-yetomart-teal hover:bg-yetomart-teal/80 focus:outline-none transition-all mt-4 font-serif italic"
-              >
-                Entrar
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between text-slate-400 text-xs">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 bg-[#333] border-none rounded-sm text-slate-600 focus:ring-0"
-                />
-                <label htmlFor="remember-me" className="ml-2 block">
-                  Lembre-se de mim
-                </label>
-              </div>
+            <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-mail ou número de telefone" className="appearance-none block w-full px-5 py-4 bg-white/5 border border-white/10 rounded-sm text-white placeholder-slate-400 focus:outline-none focus:border-yetomart-coral transition-all" />
+            <input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha" className="appearance-none block w-full px-5 py-4 bg-white/5 border border-white/10 rounded-sm text-white placeholder-slate-400 focus:outline-none focus:border-yetomart-coral transition-all" />
+            <button type="submit" disabled={loading} className="btn-brand btn-brand-lg btn-brand-full mt-4 disabled:opacity-50">
+              {loading ? 'A entrar...' : 'Entrar'}
+            </button>
+            <div className="flex justify-between text-slate-400 text-xs">
+              <label className="flex items-center"><input type="checkbox" className="mr-2" />Lembre-se de mim</label>
               <a href="#" className="hover:underline">Precisa de ajuda?</a>
             </div>
           </form>
 
-          <div className="mt-16">
-            <p className="text-slate-500 text-base">
-              Novo por aqui?{' '}
-              <Link to="/signup" className="text-white hover:underline font-bold">
-                Assine agora.
-              </Link>
-            </p>
-            <p className="mt-4 text-[13px] text-slate-500 leading-tight">
-              Esta página é protegida pelo Google reCAPTCHA para garantir que você não é um robô. <span className="text-blue-600 hover:underline cursor-pointer">Saiba mais.</span>
-            </p>
+          <div className="mt-16 text-center">
+            <p className="text-slate-500 text-base">Novo por aqui? <Link to="/signup" className="text-white hover:underline font-bold">Cadastre-se.</Link></p>
           </div>
         </div>
       </div>

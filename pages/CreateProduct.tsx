@@ -3,11 +3,15 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Category, Module } from '../types';
 import CurriculumBuilder from '../components/CurriculumBuilder';
+import { useProducts } from '../hooks/useProducts';
+import { useStorage } from '../hooks/useStorage';
 
 const CreateProduct: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const { createProduct, error: productError } = useProducts();
+  const { uploadCover, uploadError } = useStorage();
 
   // Form State
   const [formData, setFormData] = useState({
@@ -16,6 +20,8 @@ const CreateProduct: React.FC = () => {
     category: Category.COURSE,
     price: 0,
     pricingType: 'one-time', // one-time | subscription
+    whatsappLink: '',
+    ctaText: 'Comprar Agora',
     image: null as File | null,
     ebookFile: null as File | null,
     modules: [] as Module[],
@@ -63,33 +69,44 @@ const CreateProduct: React.FC = () => {
   const handleSubmit = async () => {
     setLoading(true);
     
-    // Logic differentiation for Payload
-    const payload = {
-      title: formData.title,
-      description: formData.description,
-      category: formData.category,
-      price: formData.price,
-      pricingType: formData.pricingType,
-    };
+    try {
+      let coverUrl = undefined;
+      
+      if (formData.image) {
+        // Upload com ID temporário na pasta covers (hook vai ajustar) ou passa o nome.
+        // O ideal é criar o produto primeiro pra ter o ID, mas como a estrutura pede imageUrl na criação,
+        // geramos um UUID ou deixamos o storage gerar um path aleatorio
+        const fakeId = 'temp-' + Date.now(); 
+        const url = await uploadCover(formData.image, fakeId);
+        if (url) coverUrl = url;
+      }
 
-    if (formData.category === Category.COURSE) {
-      Object.assign(payload, { 
-        curriculum: formData.modules,
-        quiz: formData.quiz.questions.length > 0 ? formData.quiz : null
-      });
-      console.log('Enviando Curso para API:', payload);
-    } else if (formData.category === Category.EBOOK) {
-      Object.assign(payload, { fileId: 'simulated-file-id' });
-      console.log('Enviando Ebook para API:', payload);
-    } else {
-      console.log('Enviando Assinatura para API:', payload);
-    }
+      const payload = {
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        price: formData.price,
+        pricingType: formData.pricingType,
+        whatsappLink: formData.whatsappLink,
+        ctaText: formData.ctaText,
+        imageUrl: coverUrl,
+        modules: formData.category === Category.COURSE ? formData.modules : [],
+        quiz: formData.quiz
+      };
 
-    // Simulate API call
-    setTimeout(() => {
+      const newId = await createProduct(payload);
+      
+      if (newId) {
+        navigate('/producer');
+      } else {
+        alert("Erro ao criar produto. Verifique se preencheu todos os campos requeridos.");
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert("Falha ao criar: " + e.message);
+    } finally {
       setLoading(false);
-      navigate('/producer');
-    }, 2000);
+    }
   };
 
   const steps = [
@@ -108,6 +125,11 @@ const CreateProduct: React.FC = () => {
             Voltar ao Painel
           </button>
           <h1 className="text-4xl font-black text-white uppercase tracking-tighter italic font-serif">Criar Novo Infoproduto</h1>
+          {(productError || uploadError) && (
+            <div className="mt-4 p-4 bg-red-500/10 border border-red-500/50 text-red-500 text-sm font-bold rounded-sm">
+              Erro: {productError || uploadError}
+            </div>
+          )}
         </div>
 
         {/* Progress Stepper */}
@@ -168,6 +190,24 @@ const CreateProduct: React.FC = () => {
                     ))}
                   </div>
                 </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Capa do Produto (Opcional)</label>
+                  <label className="flex items-center justify-center w-full h-32 px-4 py-6 bg-white/5 text-slate-400 border-2 border-white/10 border-dashed rounded-sm cursor-pointer hover:bg-white/10 hover:border-yetomart-teal transition-all">
+                    <div className="text-center font-bold text-xs uppercase tracking-widest">
+                       {formData.image ? formData.image.name : 'Clique para enviar imagem'}
+                    </div>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept="image/*"
+                      onChange={e => {
+                        if (e.target.files && e.target.files[0]) {
+                          setFormData({ ...formData, image: e.target.files[0] });
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
               </div>
             </div>
           )}
@@ -199,11 +239,39 @@ const CreateProduct: React.FC = () => {
                   <span className="absolute left-5 top-1/2 -translate-y-1/2 text-yetomart-orange font-black italic">Kz</span>
                   <input 
                     type="number" 
-                    value={formData.price}
-                    onChange={e => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                    value={isNaN(formData.price) || formData.price === 0 ? '' : formData.price}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setFormData({ ...formData, price: val === '' ? 0 : parseFloat(val) });
+                    }}
                     className="w-full bg-white/5 pl-14 p-4 rounded-sm border border-white/10 outline-none focus:border-yetomart-teal transition-all text-white font-black text-xl italic" 
-                    placeholder="0,00"
                   />
+                </div>
+              </div>
+
+              <div className="space-y-6 pt-6 border-t border-white/5">
+                <h3 className="text-sm font-black text-white uppercase tracking-widest italic font-serif">Fluxo de Adesão (WhatsApp)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Link do WhatsApp</label>
+                    <input 
+                      type="text" 
+                      value={formData.whatsappLink}
+                      onChange={e => setFormData({ ...formData, whatsappLink: e.target.value })}
+                      className="w-full bg-white/5 p-4 rounded-sm border border-white/10 outline-none focus:border-yetomart-teal transition-all text-white text-xs" 
+                      placeholder="https://wa.me/244..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Texto do Botão (CTA)</label>
+                    <input 
+                      type="text" 
+                      value={formData.ctaText}
+                      onChange={e => setFormData({ ...formData, ctaText: e.target.value })}
+                      className="w-full bg-white/5 p-4 rounded-sm border border-white/10 outline-none focus:border-yetomart-teal transition-all text-white text-xs" 
+                      placeholder="Comprar Agora"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

@@ -54,7 +54,7 @@ const Navbar: React.FC = () => {
             {!isLoggedIn ? (
               <>
                 <Link to="/login" className="text-white font-bold text-sm hover:text-yetomart-orange transition-colors font-serif italic">Entrar</Link>
-                <Link to="/signup" className="bg-yetomart-teal text-white px-6 py-2 rounded-sm text-sm font-bold hover:bg-yetomart-teal/80 transition-all shadow-lg font-serif italic">Assinar Agora</Link>
+                <Link to="/signup" className="btn-brand">Cadastrar</Link>
               </>
             ) : (
               <div className="flex items-center space-x-4">

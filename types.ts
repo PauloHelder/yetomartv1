@@ -25,6 +25,8 @@ export interface Product {
   price: number;
   category: Category;
   imageUrl: string;
+  whatsappLink?: string;
+  ctaText?: string;
   contentCount?: number;
   status?: 'published' | 'draft' | 'archived';
   modules?: Module[];

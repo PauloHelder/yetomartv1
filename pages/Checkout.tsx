@@ -1,21 +1,29 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { MOCK_PRODUCTS } from '../constants';
+import { useProducts } from '../hooks/useProducts';
+import { Product } from '../types';
 import { useAuth } from '../context/AuthContext';
 
 const Checkout: React.FC = () => {
   const { id } = useParams();
   const { purchaseProduct, saveProduct, user, isLoggedIn, login } = useAuth();
+  const { fetchById } = useProducts();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-
-  const product = MOCK_PRODUCTS.find(p => p.id === id);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [productLoading, setProductLoading] = useState(true);
 
   useEffect(() => {
-    if (!product) navigate('/');
-  }, [product, navigate]);
+    if (id) {
+      fetchById(id).then(data => {
+        setProduct(data);
+        setProductLoading(false);
+        if (!data) navigate('/');
+      });
+    }
+  }, [id, fetchById, navigate]);
 
   const handleSaveForLater = () => {
     if (!isLoggedIn) {
@@ -28,18 +36,24 @@ const Checkout: React.FC = () => {
     }
   };
 
-  const handlePayment = (e: React.FormEvent) => {
+  const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isLoggedIn) {
       login();
       return;
     }
     setLoading(true);
-    setTimeout(() => {
+    
+    // Processa compra real no supabase
+    if (product) {
+      const ok = await purchaseProduct(product.id, product.price);
       setLoading(false);
-      setSuccess(true);
-      purchaseProduct(product!.id);
-    }, 2000);
+      if (ok) {
+        setSuccess(true);
+      } else {
+        alert("Erro ao processar compra. Tente novamente.");
+      }
+    }
   };
 
   if (success) {
@@ -55,11 +69,19 @@ const Checkout: React.FC = () => {
           <p className="text-slate-400 mb-10 font-medium text-lg">Seja bem-vindo à Yetomart. Prepare a pipoca, seu acesso já está liberado.</p>
           <button 
             onClick={() => navigate('/dashboard')}
-            className="w-full bg-yetomart-teal text-white py-5 rounded-sm font-black uppercase tracking-tighter hover:bg-yetomart-teal/80 transition-all shadow-xl transform hover:scale-[1.02]"
+            className="btn-brand btn-brand-lg btn-brand-full"
           >
             Começar a Assistir
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if (productLoading) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <h2 className="text-2xl font-bold text-slate-400">Carregando formulário...</h2>
       </div>
     );
   }
@@ -114,7 +136,7 @@ const Checkout: React.FC = () => {
                   <button 
                     type="submit" 
                     disabled={loading}
-                    className="w-full bg-yetomart-teal text-white py-6 rounded-sm font-black text-xl uppercase tracking-tighter hover:bg-yetomart-teal/80 transition-all disabled:opacity-50 shadow-2xl flex items-center justify-center transform hover:scale-[1.01]"
+                    className="btn-brand btn-brand-xl btn-brand-full"
                   >
                     {loading ? (
                       <svg className="animate-spin h-6 w-6 mr-3 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -123,7 +145,7 @@ const Checkout: React.FC = () => {
                   <button 
                     type="button"
                     onClick={handleSaveForLater}
-                    className="w-full mt-4 bg-white/5 text-slate-400 py-4 rounded-sm font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5"
+                    className="btn-ghost btn-ghost-full mt-4"
                   >
                     Adicionar e pagar depois
                   </button>

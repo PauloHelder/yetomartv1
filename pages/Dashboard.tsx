@@ -1,20 +1,32 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { MOCK_PRODUCTS } from '../constants';
-import { Category } from '../types';
+import { useProducts } from '../hooks/useProducts';
+import { Category, Product } from '../types';
 import { useNavigate, Link } from 'react-router-dom';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  
-  const purchasedProducts = MOCK_PRODUCTS.filter(p => user?.purchasedIds.includes(p.id));
-  const savedProducts = MOCK_PRODUCTS.filter(p => user?.savedIds.includes(p.id));
-  
-  const allListProducts = [...purchasedProducts, ...savedProducts];
-  const courses = allListProducts.filter(p => p.category === Category.COURSE);
-  const others = allListProducts.filter(p => p.category !== Category.COURSE);
+  const { fetchPublished } = useProducts();
+  const [loading, setLoading] = useState(true);
+  const [courses, setCourses] = useState<Product[]>([]);
+  const [others, setOthers] = useState<Product[]>([]);
+
+  useEffect(() => {
+    fetchPublished().then(data => {
+      const purchasedProducts = data.filter(p => user?.purchasedIds?.includes(p.id));
+      const savedProducts = data.filter(p => user?.savedIds?.includes(p.id));
+      
+      const allListProducts = [...new Map([...purchasedProducts, ...savedProducts].map(item => [item.id, item])).values()];
+      
+      setCourses(allListProducts.filter(p => p.category === Category.COURSE));
+      setOthers(allListProducts.filter(p => p.category !== Category.COURSE));
+      setLoading(false);
+    });
+  }, [user, fetchPublished]);
+
+  if (loading) return <div className="bg-[#0f172a] min-h-screen p-20 text-center text-white">Carregando seus cursos...</div>;
 
   return (
     <div className="bg-[#0f172a] min-h-screen text-white">

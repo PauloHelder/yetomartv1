@@ -1,27 +1,38 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { MOCK_PRODUCTS } from '../constants';
-import { Category, Product } from '../types';
 import ProductCard from '../components/ProductCard';
 import FeaturedSlider from '../components/FeaturedSlider';
 import Offcanvas from '../components/Offcanvas';
+import { useProducts } from '../hooks/useProducts';
+import { Product, Category } from '../types';
 
 const Catalog: React.FC = () => {
   const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [filter, setFilter] = useState<Category | 'Todos'>('Todos');
   const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const searchQuery = searchParams.get('q') || '';
 
-  const searchQuery = new URLSearchParams(location.search).get('q') || '';
+  const { fetchPublished } = useProducts();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPublished().then(data => {
+      setProducts(data);
+      setLoading(false);
+    });
+  }, [fetchPublished]);
 
   const filtered = useMemo(() => {
-    return MOCK_PRODUCTS.filter(p => {
+    return products.filter(p => {
       const matchesCategory = filter === 'Todos' || p.category === filter;
       const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          p.description.toLowerCase().includes(searchQuery.toLowerCase());
+                          (p.description || '').toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
-  }, [filter, searchQuery]);
+  }, [products, filter, searchQuery]);
 
   return (
     <div className="w-full pb-20">
@@ -55,7 +66,7 @@ const Catalog: React.FC = () => {
                 onClick={() => setFilter(cat as any)}
                 className={`px-5 py-1.5 rounded-sm text-xs font-black uppercase tracking-tighter transition-all ${
                   filter === cat 
-                    ? 'bg-yetomart-teal text-white' 
+                    ? 'bg-yetomart-coral text-white' 
                     : 'bg-white/5 text-slate-400 border border-white/10 hover:border-white/30 hover:text-white'
                 }`}
               >
@@ -83,7 +94,7 @@ const Catalog: React.FC = () => {
              <h3 className="text-lg font-bold text-white">Nenhum título encontrado</h3>
              <p className="text-slate-500 text-sm mt-2">Tente buscar por outros termos ou categorias.</p>
              <button 
-                onClick={() => window.location.href = '#/'}
+                onClick={() => window.location.href = '/'}
                 className="mt-6 text-yetomart-orange font-bold hover:underline text-sm"
               >
                Voltar ao início
@@ -93,14 +104,36 @@ const Catalog: React.FC = () => {
       </section>
 
       {!searchQuery && (
-        <section className="bg-gradient-to-r from-yetomart-teal/40 to-black rounded-lg p-12 text-left text-white relative overflow-hidden border border-white/5">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-yetomart-orange rounded-full blur-[120px] opacity-10 -mr-48 -mt-48"></div>
-          <div className="relative z-10 max-w-2xl">
-              <h2 className="text-3xl font-black mb-4 uppercase tracking-tighter font-serif italic">Assine o plano ilimitado</h2>
-              <p className="text-slate-300 mb-8 text-base">Tenha acesso a todos os cursos, ebooks e mentorias por um valor único mensal. Cancele quando quiser.</p>
-              <button className="bg-yetomart-teal text-white px-8 py-3 rounded-sm font-black uppercase tracking-tighter hover:bg-yetomart-teal/80 transition-all shadow-xl">
-                Assinar Agora
-              </button>
+        <section className="relative w-full overflow-hidden rounded-lg mx-0 mt-4" style={{ height: '420px' }}>
+          {/* Hero Image */}
+          <img
+            src="/hero_banner.png"
+            alt="Yetomart — Tecnologias em Potencial"
+            className="absolute inset-0 w-full h-full object-cover object-center"
+          />
+          {/* Multi-directional overlays for readability */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0f172a] via-[#0f172a]/70 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a] via-transparent to-[#0f172a]/30" />
+          {/* Subtle coral glow accent */}
+          <div className="absolute bottom-0 left-0 w-80 h-80 bg-yetomart-coral/20 rounded-full blur-[100px] -mb-40 -ml-20" />
+
+          {/* Content */}
+          <div className="relative z-10 h-full flex items-center px-10 md:px-16">
+            <div className="max-w-xl">
+              <span className="inline-block text-[10px] font-black uppercase tracking-[0.3em] text-yetomart-orange mb-4 border-l-2 border-yetomart-orange pl-3">
+                A maior plataforma de Angola
+              </span>
+              <h2 className="text-4xl md:text-6xl font-black text-white mb-5 leading-[0.92] tracking-tighter uppercase italic font-serif">
+                Aprenda com quem<br />realmente faz
+              </h2>
+              <p className="text-slate-300 mb-8 text-base leading-relaxed max-w-md font-medium">
+                Acesso ilimitado a cursos, ebooks e mentorias com os melhores profissionais de Angola e do mundo.
+              </p>
+              <div className="flex flex-wrap items-center gap-4">
+                <button className="btn-brand btn-brand-lg">Cadastrar</button>
+                <button className="btn-ghost">Explorar Cursos</button>
+              </div>
+            </div>
           </div>
         </section>
       )}

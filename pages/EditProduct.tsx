@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Category, Module } from '../types';
-import { MOCK_PRODUCTS } from '../constants';
+import { useProducts } from '../hooks/useProducts';
 import CurriculumBuilder from '../components/CurriculumBuilder';
 
 const EditProduct: React.FC = () => {
@@ -10,6 +10,7 @@ const EditProduct: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const { fetchById, updateProduct } = useProducts();
 
   // Form State
   const [formData, setFormData] = useState({
@@ -18,6 +19,8 @@ const EditProduct: React.FC = () => {
     category: Category.COURSE,
     price: 0,
     pricingType: 'one-time', // one-time | subscription
+    whatsappLink: '',
+    ctaText: 'Comprar Agora',
     image: null as File | null,
     ebookFile: null as File | null,
     modules: [] as Module[],
@@ -28,29 +31,34 @@ const EditProduct: React.FC = () => {
   });
 
   useEffect(() => {
-    const product = MOCK_PRODUCTS.find(p => p.id === id);
-    if (product) {
-      setFormData({
-        title: product.title,
-        description: product.description,
-        category: product.category,
-        price: product.price,
-        pricingType: 'one-time', // Mocking this as it's not in the type
-        image: null,
-        ebookFile: null,
-        modules: product.modules || [],
-        quiz: product.quiz ? {
-          title: product.quiz.title,
-          questions: product.quiz.questions
-        } : {
-          title: '',
-          questions: []
+    if (id) {
+      fetchById(id).then(product => {
+        if (product) {
+          setFormData({
+            title: product.title,
+            description: product.description,
+            category: product.category,
+            price: product.price,
+            pricingType: 'one-time', // Configuração padrão
+            whatsappLink: product.whatsappLink || '',
+            ctaText: product.ctaText || 'Comprar Agora',
+            image: null,
+            ebookFile: null,
+            modules: product.modules || [],
+            quiz: product.quiz ? {
+              title: product.quiz.title,
+              questions: product.quiz.questions
+            } : {
+              title: '',
+              questions: []
+            }
+          });
+        } else {
+          navigate('/producer');
         }
       });
-    } else {
-      navigate('/producer');
     }
-  }, [id, navigate]);
+  }, [id, fetchById, navigate]);
 
   const handleNext = () => setStep(s => s + 1);
   const handleBack = () => setStep(s => s - 1);
@@ -90,34 +98,32 @@ const EditProduct: React.FC = () => {
   const handleSubmit = async () => {
     setLoading(true);
     
-    // Logic differentiation for Payload
-    const payload = {
-      id,
-      title: formData.title,
-      description: formData.description,
-      category: formData.category,
-      price: formData.price,
-      pricingType: formData.pricingType,
-    };
+    try {
+      const payload = {
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        price: formData.price,
+        pricingType: formData.pricingType,
+        whatsappLink: formData.whatsappLink,
+        ctaText: formData.ctaText,
+        modules: formData.modules,
+        quiz: formData.quiz
+      };
 
-    if (formData.category === Category.COURSE) {
-      Object.assign(payload, { 
-        curriculum: formData.modules,
-        quiz: formData.quiz.questions.length > 0 ? formData.quiz : null
-      });
-      console.log('Atualizando Curso na API:', payload);
-    } else if (formData.category === Category.EBOOK) {
-      Object.assign(payload, { fileId: 'simulated-file-id' });
-      console.log('Atualizando Ebook na API:', payload);
-    } else {
-      console.log('Atualizando Assinatura na API:', payload);
-    }
-
-    // Simulate API call
-    setTimeout(() => {
+      const ok = await updateProduct(id!, payload as any);
+      
+      if (ok) {
+        navigate('/producer');
+      } else {
+        alert("Erro ao atualizar produto.");
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert("Falha ao salvar.");
+    } finally {
       setLoading(false);
-      navigate('/producer');
-    }, 2000);
+    }
   };
 
   const steps = [
@@ -233,6 +239,32 @@ const EditProduct: React.FC = () => {
                     className="w-full bg-white/5 pl-14 p-4 rounded-sm border border-white/10 outline-none focus:border-yetomart-teal transition-all text-white font-black text-xl italic" 
                     placeholder="0,00"
                   />
+                </div>
+              </div>
+
+              <div className="space-y-6 pt-6 border-t border-white/5">
+                <h3 className="text-sm font-black text-white uppercase tracking-widest italic font-serif">Fluxo de Adesão (WhatsApp)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Link do WhatsApp</label>
+                    <input 
+                      type="text" 
+                      value={formData.whatsappLink}
+                      onChange={e => setFormData({ ...formData, whatsappLink: e.target.value })}
+                      className="w-full bg-white/5 p-4 rounded-sm border border-white/10 outline-none focus:border-yetomart-teal transition-all text-white text-xs" 
+                      placeholder="https://wa.me/244..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Texto do Botão (CTA)</label>
+                    <input 
+                      type="text" 
+                      value={formData.ctaText}
+                      onChange={e => setFormData({ ...formData, ctaText: e.target.value })}
+                      className="w-full bg-white/5 p-4 rounded-sm border border-white/10 outline-none focus:border-yetomart-teal transition-all text-white text-xs" 
+                      placeholder="Comprar Agora"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

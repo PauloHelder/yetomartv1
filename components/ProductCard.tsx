@@ -23,11 +23,11 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
         />
         <div className="absolute top-2 left-2">
-          <span className="bg-yetomart-teal px-2 py-0.5 rounded-sm text-[9px] font-black text-white shadow-lg uppercase tracking-tighter font-serif italic">
+          <span className="bg-yetomart-coral px-2 py-0.5 rounded-sm text-[9px] font-black text-white shadow-lg uppercase tracking-tighter font-serif italic">
             {product.category}
           </span>
         </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-yetomart-teal/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+        <div className="absolute inset-0 bg-gradient-to-t from-yetomart-coral/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
            <button 
             onClick={(e) => { e.stopPropagation(); onQuickView(product); }}
             className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all"
@@ -70,7 +70,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
           <button 
             onClick={() => navigate(owned ? (product.category === Category.COURSE ? `/members/${product.id}` : '/dashboard') : `/product/${product.id}`)}
             className={`px-3 py-1.5 rounded-sm text-[10px] font-black uppercase tracking-tighter transition-all ${
-              owned ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-yetomart-teal text-white hover:bg-yetomart-teal/80'
+              owned ? 'bg-white/10 text-white hover:bg-white/20' : 'btn-brand'
             }`}
           >
             {owned ? 'Assistir' : 'Mais Info'}
