@@ -6,13 +6,49 @@ import { useSales } from '../hooks/useSales';
 import { Product, ProducerStats, Sale } from '../types';
 import Logo from '../components/Logo';
 
+const ProfileSaveButton: React.FC = () => {
+  const { updateProfile } = useAuth();
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const handleSave = async () => {
+    setSaving(true);
+    const name = (document.getElementById('profile-name') as HTMLInputElement).value;
+    const bio = (document.getElementById('profile-bio') as HTMLTextAreaElement).value;
+    const avatarUrl = (document.getElementById('profile-avatar') as HTMLInputElement).value;
+
+    const ok = await updateProfile({ name, bio, avatarUrl });
+    setSaving(false);
+    
+    if (ok) {
+      setMsg('✅ Perfil atualizado com sucesso!');
+      setTimeout(() => setMsg(''), 3000);
+    } else {
+      setMsg('❌ Erro ao atualizar.');
+    }
+  };
+
+  return (
+    <div className="flex items-center space-x-6">
+      <button 
+        onClick={handleSave}
+        disabled={saving}
+        className="bg-yetomart-orange text-yetomart-gray px-10 py-4 rounded-sm font-black uppercase tracking-widest hover:bg-white transition-all shadow-xl disabled:opacity-50"
+      >
+        {saving ? 'Guardando...' : 'Guardar Perfil'}
+      </button>
+      {msg && <span className="text-xs font-bold text-slate-300 animate-fadeIn">{msg}</span>}
+    </div>
+  );
+};
+
 const ProducerDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { fetchMine, toggleStatus, deleteProduct, loading: loadingProd } = useProducts();
-  const { fetchMySales, loading: loadingSales } = useSales();
+  const { fetchMySales, updateOrderStatus, loading: loadingSales } = useSales();
 
-  const [activeTab, setActiveTab] = useState<'products' | 'sales'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'sales' | 'profile'>('products');
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [stats, setStats] = useState<ProducerStats>({ totalRevenue: 0, totalSales: 0, activeStudents: 0 });
@@ -42,8 +78,13 @@ const ProducerDashboard: React.FC = () => {
     }
   };
 
+  const handleUpdateOrderStatus = async (purchaseId: string, newStatus: 'completed' | 'pending' | 'refunded') => {
+    await updateOrderStatus(purchaseId, newStatus);
+    loadData();
+  };
+
   const statBoxes = [
-    { label: 'Receita Total', value: `Kz ${stats.totalRevenue.toFixed(0)}`, icon: '💰' },
+    { label: 'Receita Total', value: `Kz ${stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, icon: '💰' },
     { label: 'Total de Vendas', value: stats.totalSales.toString(), icon: '📈' },
     { label: 'Alunos Ativos', value: stats.activeStudents.toString(), icon: '👥' },
   ];
@@ -58,6 +99,7 @@ const ProducerDashboard: React.FC = () => {
             <button onClick={() => navigate('/')} className="text-[10px] font-black text-slate-500 hover:text-yetomart-orange uppercase tracking-widest transition-colors">Catálogo</button>
             <button onClick={() => navigate('/dashboard')} className="text-[10px] font-black text-slate-500 hover:text-yetomart-orange uppercase tracking-widest transition-colors">Minha Área</button>
             <button onClick={() => setActiveTab('products')} className={`text-[10px] font-black uppercase tracking-widest transition-colors ${activeTab === 'products' ? 'text-yetomart-orange' : 'text-slate-500 hover:text-white'}`}>Meus Produtos</button>
+            <button onClick={() => setActiveTab('profile')} className={`text-[10px] font-black uppercase tracking-widest transition-colors ${activeTab === 'profile' ? 'text-yetomart-orange' : 'text-slate-500 hover:text-white'}`}>Meu Perfil</button>
           </div>
         </div>
         <div className="flex items-center space-x-4">
@@ -97,6 +139,7 @@ const ProducerDashboard: React.FC = () => {
             <div className="flex space-x-8">
               <button onClick={() => setActiveTab('products')} className={`pb-6 text-xs font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'products' ? 'border-yetomart-orange text-white' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>Seus Produtos</button>
               <button onClick={() => setActiveTab('sales')} className={`pb-6 text-xs font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'sales' ? 'border-yetomart-orange text-white' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>Vendas & Alunos</button>
+              <button onClick={() => setActiveTab('profile')} className={`pb-6 text-xs font-black uppercase tracking-widest border-b-2 transition-all ${activeTab === 'profile' ? 'border-yetomart-orange text-white' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>Perfil Público</button>
             </div>
             <div className="pb-6">
                <button className="text-[10px] font-black px-5 py-2 bg-white/5 rounded-sm text-slate-300 uppercase tracking-widest border border-white/10 hover:bg-white/10 transition-all">Atualizar</button>
@@ -130,7 +173,7 @@ const ProducerDashboard: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-8 py-6"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{product.category}</span></td>
-                      <td className="px-8 py-6 text-sm font-black text-white italic">Kz {product.price.toFixed(2)}</td>
+                      <td className="px-8 py-6 text-sm font-black text-white italic">Kz {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="px-8 py-6">
                         <span className={`px-3 py-1 rounded-sm text-[10px] font-black uppercase tracking-widest border ${product.status === 'published' ? 'bg-green-600/10 text-green-500 border-green-600/20' : 'bg-yetomart-red/10 text-yetomart-red border-yetomart-red/20'}`}>
                           {product.status === 'published' ? 'Publicado' : 'Desabilitado'}
@@ -167,7 +210,7 @@ const ProducerDashboard: React.FC = () => {
                   ))}
                 </tbody>
               </table>
-            ) : (
+            ) : activeTab === 'sales' ? (
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-black/40 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
@@ -176,11 +219,12 @@ const ProducerDashboard: React.FC = () => {
                     <th className="px-8 py-5">Data</th>
                     <th className="px-8 py-5">Valor</th>
                     <th className="px-8 py-5">Status</th>
+                    <th className="px-8 py-5 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {sales.length === 0 && (
-                    <tr><td colSpan={5} className="px-8 py-10 text-center text-slate-500">Nenhuma venda registada até o momento.</td></tr>
+                    <tr><td colSpan={6} className="px-8 py-10 text-center text-slate-500">Nenhuma venda registada até o momento.</td></tr>
                   )}
                   {sales.map(sale => (
                     <tr key={sale.id} className="hover:bg-white/5 transition-colors group">
@@ -192,16 +236,76 @@ const ProducerDashboard: React.FC = () => {
                       </td>
                       <td className="px-8 py-6"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{sale.productTitle}</span></td>
                       <td className="px-8 py-6 text-sm font-black text-slate-300">{sale.date}</td>
-                      <td className="px-8 py-6 text-sm font-black text-white italic">Kz {sale.amount.toFixed(2)}</td>
+                      <td className="px-8 py-6 text-sm font-black text-white italic">Kz {sale.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="px-8 py-6">
-                        <span className={`px-3 py-1 rounded-sm text-[10px] font-black uppercase tracking-widest border ${sale.status === 'completed' ? 'bg-green-600/10 text-green-500 border-green-600/20' : 'bg-yetomart-red/10 text-yetomart-red border-yetomart-red/20'}`}>
-                          {sale.status === 'completed' ? 'Recebido' : sale.status}
+                        <span className={`px-3 py-1 rounded-sm text-[10px] font-black uppercase tracking-widest border ${sale.status === 'completed' ? 'bg-green-600/10 text-green-500 border-green-600/20' : sale.status === 'pending' ? 'bg-yellow-600/10 text-yellow-500 border-yellow-600/20' : 'bg-yetomart-red/10 text-yetomart-red border-yetomart-red/20'}`}>
+                          {sale.status === 'completed' ? 'Liberado' : sale.status === 'pending' ? 'Pendente' : 'Inativo'}
                         </span>
+                      </td>
+                      <td className="px-8 py-6 text-right">
+                        <div className="flex justify-end space-x-3">
+                          {sale.status !== 'completed' && (
+                            <button onClick={() => handleUpdateOrderStatus(sale.id, 'completed')} className="p-2 text-slate-500 hover:text-green-500 transition-colors" title="Liberar Acesso">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                            </button>
+                          )}
+                          {sale.status === 'completed' && (
+                            <button onClick={() => handleUpdateOrderStatus(sale.id, 'refunded')} className="p-2 text-slate-500 hover:text-yetomart-red transition-colors" title="Inativar Acesso">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            ) : (
+              <div className="p-10 max-w-2xl">
+                 <div className="space-y-8">
+                   <div>
+                     <h3 className="text-xl font-black text-white uppercase tracking-tighter italic border-l-4 border-yetomart-orange pl-3 mb-6 font-serif">Seu Perfil de Instrutor</h3>
+                     <p className="text-slate-400 text-xs font-medium leading-relaxed">Estas informações serão exibidas em todos os seus cursos na seção "Sobre o Instrutor". Capriche na sua biografia para aumentar sua autoridade.</p>
+                   </div>
+
+                   <div className="space-y-6">
+                     <div>
+                       <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Nome de Exibição</label>
+                       <input 
+                         type="text" 
+                         defaultValue={user?.name}
+                         id="profile-name"
+                         className="w-full bg-white/5 p-4 rounded-sm border border-white/10 outline-none focus:border-yetomart-orange transition-all text-white text-xs" 
+                         placeholder="Seu nome artístico ou profissional"
+                       />
+                     </div>
+
+                     <div>
+                       <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Sua Biografia (Sobre o Instrutor)</label>
+                       <textarea 
+                         id="profile-bio"
+                         defaultValue={user?.bio}
+                         className="w-full bg-white/5 p-4 rounded-sm border border-white/10 outline-none focus:border-yetomart-orange transition-all text-white text-xs min-h-[150px] resize-none" 
+                         placeholder="Conte sua experiência, conquistas e por que os alunos devem aprender com você..."
+                       ></textarea>
+                     </div>
+
+                     <div>
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">URL do Avatar (Foto)</label>
+                        <input 
+                          type="text" 
+                          id="profile-avatar"
+                          defaultValue={user?.avatarUrl}
+                          className="w-full bg-white/5 p-4 rounded-sm border border-white/10 outline-none focus:border-yetomart-orange transition-all text-white text-xs" 
+                          placeholder="https://suafoto.com/imagem.jpg"
+                        />
+                     </div>
+
+
+                      <ProfileSaveButton />
+                    </div>
+                  </div>
+              </div>
             )}
           </div>
         </div>

@@ -10,9 +10,9 @@ interface ProductCardProps {
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
-  const { hasAccess } = useAuth();
+  const { user, hasAccess } = useAuth();
   const navigate = useNavigate();
-  const owned = hasAccess(product.id);
+  const owned = hasAccess(product.id) || (user && user.id === product.producerId);
 
   return (
     <div className="bg-white/5 rounded-md overflow-hidden flex flex-col group yetomart-card transition-all duration-300 border border-white/5 hover:border-white/20">
@@ -27,15 +27,17 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
             {product.category}
           </span>
         </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-yetomart-coral/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
-           <button 
-            onClick={(e) => { e.stopPropagation(); onQuickView(product); }}
-            className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all"
-            title="Visualização Rápida"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          </button>
-        </div>
+        {!owned && (
+          <div className="absolute inset-0 bg-gradient-to-t from-yetomart-coral/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+             <button 
+              onClick={(e) => { e.stopPropagation(); onQuickView(product); }}
+              className="p-2 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all"
+              title="Visualização Rápida"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </button>
+          </div>
+        )}
       </div>
       
       <div className="p-4 flex-1 flex flex-col">
@@ -57,23 +59,20 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
         
         <div className="mt-auto flex items-center justify-between pt-3 border-t border-white/5">
           <div className="flex flex-col">
-             {owned ? (
-               <span className="text-emerald-500 font-bold text-[10px] flex items-center uppercase tracking-wider">
-                 <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                 Na sua lista
-               </span>
-             ) : (
-               <span className="text-sm font-black text-white leading-none">Kz {product.price.toFixed(2)}</span>
+             {!owned && (
+               <span className="text-sm font-black text-white leading-none">Kz {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
              )}
           </div>
           
           <button 
             onClick={() => navigate(owned ? (product.category === Category.COURSE ? `/members/${product.id}` : '/dashboard') : `/product/${product.id}`)}
-            className={`px-3 py-1.5 rounded-sm text-[10px] font-black uppercase tracking-tighter transition-all ${
-              owned ? 'bg-white/10 text-white hover:bg-white/20' : 'btn-brand'
+            className={`px-4 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all ${
+              owned 
+                ? 'bg-emerald-500 text-white hover:bg-emerald-600 flex-1 text-center' 
+                : 'btn-brand'
             }`}
           >
-            {owned ? 'Assistir' : 'Mais Info'}
+            {owned ? 'Acessar Curso' : 'Mais Info'}
           </button>
         </div>
       </div>

@@ -12,7 +12,7 @@ import PurchaseModal from '../components/PurchaseModal';
 const ProductDetails: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { hasAccess, saveProduct, isLoggedIn, login } = useAuth();
+  const { user, hasAccess, saveProduct, isLoggedIn } = useAuth();
   const { fetchById } = useProducts();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,12 +27,14 @@ const ProductDetails: React.FC = () => {
     }
   }, [id, fetchById]);
 
-  const owned = product ? hasAccess(product.id) : false;
+  const hasCompleted = product ? (hasAccess(product.id) || (user && user.id === product.producerId)) : false;
+  const hasPending = product ? (user?.pendingIds?.includes(product.id) ?? false) : false;
+  const owned = hasCompleted;
   const [isFavorited, setIsFavorited] = useState(false);
 
   const handleFavorite = () => {
     if (!isLoggedIn) {
-      login();
+      navigate('/login');
       return;
     }
     if (product) {
@@ -102,13 +104,28 @@ const ProductDetails: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
-              <button 
-                onClick={() => owned ? navigate(`/members/${product.id}`) : setShowPurchaseModal(true)}
-                className="bg-white text-black px-12 py-5 rounded-sm font-black uppercase tracking-widest text-xs hover:bg-yetomart-coral hover:text-white transition-all transform hover:scale-105 shadow-[0_20px_40px_rgba(0,0,0,0.4)] flex items-center group"
-              >
-                <svg className="w-5 h-5 mr-3 fill-current transition-transform group-hover:scale-125" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                {owned ? 'Assistir Agora' : (product.ctaText || 'Comprar Agora')}
-              </button>
+              {hasCompleted ? (
+                <button 
+                  onClick={() => navigate(`/members/${product.id}`)}
+                  className="bg-white text-black px-12 py-5 rounded-sm font-black uppercase tracking-widest text-xs hover:bg-yetomart-coral hover:text-white transition-all transform hover:scale-105 shadow-[0_20px_40px_rgba(0,0,0,0.4)] flex items-center group"
+                >
+                  <svg className="w-5 h-5 mr-3 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  {product.category === 'Ebook' ? 'Aceder ao E-book' : 'Aceder ao Curso'}
+                </button>
+              ) : hasPending ? (
+                <div className="flex items-center space-x-4 px-8 py-4 bg-yellow-500/10 border border-yellow-500/30 rounded-sm">
+                  <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="text-yellow-400 font-black text-xs uppercase tracking-widest">Aguardando Liberação do Produtor</span>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setShowPurchaseModal(true)}
+                  className="bg-white text-black px-12 py-5 rounded-sm font-black uppercase tracking-widest text-xs hover:bg-yetomart-coral hover:text-white transition-all transform hover:scale-105 shadow-[0_20px_40px_rgba(0,0,0,0.4)] flex items-center group"
+                >
+                  <svg className="w-5 h-5 mr-3 fill-current transition-transform group-hover:scale-125" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  {product.ctaText || 'Adquirir Agora'}
+                </button>
+              )}
               
               {!owned && (
                 <button 
@@ -142,10 +159,12 @@ const ProductDetails: React.FC = () => {
                 </div>
                 
                 {/* Badge Flutuante Arredondado */}
-                <div className="absolute -bottom-6 -left-6 bg-[#0f172a] p-5 rounded-[10px] border border-white/10 shadow-3xl hidden md:block">
-                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Valor Unitário</p>
-                   <p className="text-2xl font-black text-yetomart-orange italic">Kz {product.price.toFixed(2)}</p>
-                </div>
+                {!owned && (
+                  <div className="absolute -bottom-6 -left-6 bg-[#0f172a] p-5 rounded-[10px] border border-white/10 shadow-3xl hidden md:block">
+                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Valor Unitário</p>
+                     <p className="text-2xl font-black text-yetomart-orange italic">Kz {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                  </div>
+                )}
              </div>
           </div>
         </div>
@@ -157,12 +176,14 @@ const ProductDetails: React.FC = () => {
           <section className="mb-16">
             <h2 className="text-2xl font-black mb-8 uppercase tracking-tighter border-b border-yetomart-coral inline-block pb-1 font-serif italic">O que você vai aprender</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white/5 p-8 rounded-sm border border-white/10 backdrop-blur-sm">
-              {[1, 2, 3, 4, 5, 6].map(i => (
+              {(product.learningOutcomes && product.learningOutcomes.length > 0) ? product.learningOutcomes.map((outcome, i) => (
                 <div key={i} className="flex items-start space-x-4 text-slate-300">
                   <svg className="w-5 h-5 text-yetomart-coral flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-                  <span className="text-base font-medium">Desenvolver habilidades avançadas em {product.title} do zero absoluto.</span>
+                  <span className="text-base font-medium">{outcome}</span>
                 </div>
-              ))}
+              )) : (
+                <div className="col-span-2 text-slate-500 text-sm font-medium italic">Nenhum detalhe especificado.</div>
+              )}
             </div>
           </section>
 
@@ -204,14 +225,13 @@ const ProductDetails: React.FC = () => {
             <h2 className="text-2xl font-black mb-8 uppercase tracking-tighter border-b border-yetomart-coral inline-block pb-1 font-serif italic">Elenco & Instrutor</h2>
             <div className="flex items-start space-x-8 bg-white/5 p-8 rounded-sm border border-white/10">
                <div className="w-32 h-32 bg-slate-800 rounded-sm flex-shrink-0 border-2 border-white/10 shadow-2xl overflow-hidden">
-                 <img src="https://i.pravatar.cc/150?u=instructor" alt="" className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-500" />
+                 <img src={product.instructor?.avatarUrl || "https://i.pravatar.cc/150?u=instructor"} alt="" className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-500" />
                </div>
                <div>
-                 <h4 className="text-2xl font-black mb-1 uppercase tracking-tighter italic font-serif">Dr. Alex Thompson</h4>
+                 <h4 className="text-2xl font-black mb-1 uppercase tracking-tighter italic font-serif">{product.instructor?.name || 'Instrutor Yetomart'}</h4>
                  <p className="text-yetomart-orange text-sm font-black mb-4 uppercase tracking-widest">Showrunner & Especialista</p>
                  <p className="text-slate-400 text-base leading-relaxed font-medium">
-                   Alex possui mais de 15 anos de experiência no mercado global, tendo passado por grandes Big Techs. 
-                   Sua metodologia foca em resultados práticos e simplificação de conceitos complexos, transformando aprendizado em entretenimento na Yetomart.
+                   {product.instructor?.bio || "Este instrutor ainda não adicionou uma biografia. No entanto, é um especialista certificado pela Yetomart garantindo a melhor experiência de aprendizado."}
                  </p>
                </div>
             </div>
@@ -221,15 +241,17 @@ const ProductDetails: React.FC = () => {
         <div className="hidden lg:block">
           <div className="bg-white/5 rounded-sm shadow-2xl p-8 text-white sticky top-24 border border-white/10 backdrop-blur-md">
             <h3 className="text-xl font-black mb-6 uppercase tracking-tighter italic border-l-4 border-yetomart-coral pl-3 font-serif">Detalhes da Assinatura</h3>
-            <div className="flex items-end space-x-2 mb-8">
-               <span className="text-4xl font-black">Kz {product.price.toFixed(2)}</span>
-               <span className="text-slate-500 text-sm line-through mb-1 font-bold">Kz {(product.price * 1.5).toFixed(2)}</span>
-            </div>
+            {!owned && (
+              <div className="flex items-end space-x-2 mb-8">
+                 <span className="text-4xl font-black">Kz {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                 <span className="text-slate-500 text-sm line-through mb-1 font-bold">Kz {(product.price * 1.5).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+            )}
             <button 
               onClick={() => owned ? navigate(`/members/${product.id}`) : setShowPurchaseModal(true)}
               className="btn-brand btn-brand-lg btn-brand-full mb-4"
             >
-              {owned ? 'Continuar Assistindo' : (product.ctaText || 'Comprar Agora')}
+              {owned ? 'Acessar Agora' : (product.ctaText || 'Comprar Agora')}
             </button>
             {!owned && (
               <button 
@@ -266,10 +288,17 @@ const ProductDetails: React.FC = () => {
 
       {/* Mobile Sticky Bar */}
       <div className="lg:hidden fixed bottom-0 left-0 w-full bg-[#0f172a] border-t border-white/10 p-5 flex items-center justify-between z-30 shadow-2xl">
-        <div>
-          <span className="block text-[10px] text-slate-500 font-black uppercase tracking-widest">Assinatura</span>
-          <span className="text-2xl font-black text-white leading-none tracking-tighter">Kz {product.price.toFixed(2)}</span>
-        </div>
+        {!owned ? (
+          <div>
+            <span className="block text-[10px] text-slate-500 font-black uppercase tracking-widest">Assinatura</span>
+            <span className="text-2xl font-black text-white leading-none tracking-tighter">Kz {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+        ) : (
+          <div>
+            <span className="block text-[10px] text-emerald-500 font-black uppercase tracking-widest">Inscrito</span>
+            <span className="text-xl font-black text-white leading-none tracking-tighter">Bem-vindo</span>
+          </div>
+        )}
         <div className="flex items-center space-x-3">
           {!owned && (
             <button 
@@ -283,9 +312,11 @@ const ProductDetails: React.FC = () => {
           )}
           <button 
             onClick={() => owned ? navigate(`/members/${product.id}`) : setShowPurchaseModal(true)}
-            className="btn-brand btn-brand-lg"
+            className={`px-8 py-4 rounded-sm text-xs font-black uppercase tracking-widest transition-all ${
+              owned ? 'bg-emerald-500 text-white' : 'btn-brand'
+            }`}
           >
-            {owned ? 'Assistir' : (product.ctaText || 'Assinar')}
+            {owned ? 'Acessar' : (product.ctaText || 'Assinar')}
           </button>
         </div>
       </div>

@@ -31,5 +31,30 @@ export function useStorage() {
     return data.publicUrl;
   }, []);
 
-  return { uploading, uploadError, uploadCover };
+  const uploadEbook = useCallback(async (file: File, productId: string): Promise<string | null> => {
+    setUploading(true);
+    setUploadError(null);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setUploading(false); return null; }
+
+    const ext = file.name.split('.').pop();
+    const path = `ebooks/${user.id}/${productId}-ebook.${ext}`;
+
+    const { error } = await supabase.storage
+      .from('product-covers')
+      .upload(path, file, { upsert: true, contentType: file.type });
+
+    if (error) {
+      setUploadError(error.message);
+      setUploading(false);
+      return null;
+    }
+
+    const { data } = supabase.storage.from('product-covers').getPublicUrl(path);
+    setUploading(false);
+    return data.publicUrl;
+  }, []);
+
+  return { uploading, uploadError, uploadCover, uploadEbook };
 }

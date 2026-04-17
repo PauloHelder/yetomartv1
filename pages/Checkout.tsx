@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 
 const Checkout: React.FC = () => {
   const { id } = useParams();
-  const { purchaseProduct, saveProduct, user, isLoggedIn, login } = useAuth();
+  const { purchaseProduct, saveProduct, user, isLoggedIn, refreshProfile } = useAuth();
   const { fetchById } = useProducts();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -27,7 +27,7 @@ const Checkout: React.FC = () => {
 
   const handleSaveForLater = () => {
     if (!isLoggedIn) {
-      login();
+      navigate('/login');
       return;
     }
     if (product) {
@@ -39,19 +39,21 @@ const Checkout: React.FC = () => {
   const handlePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isLoggedIn) {
-      login();
+      navigate('/login');
       return;
     }
     setLoading(true);
     
-    // Processa compra real no supabase
     if (product) {
       const ok = await purchaseProduct(product.id, product.price);
-      setLoading(false);
       if (ok) {
+        // Atualiza os pendingIds em memória antes de mostrar a tela de sucesso
+        await refreshProfile();
+        setLoading(false);
         setSuccess(true);
       } else {
-        alert("Erro ao processar compra. Tente novamente.");
+        setLoading(false);
+        alert("Erro ao processar pedido. Tente novamente.");
       }
     }
   };
@@ -60,18 +62,19 @@ const Checkout: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#0f172a] flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center bg-white/5 p-12 rounded-sm shadow-2xl border border-white/10 backdrop-blur-md">
-          <div className="bg-yetomart-teal/20 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 border-2 border-yetomart-teal">
-            <svg className="w-12 h-12 text-yetomart-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+          <div className="bg-yellow-500/20 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 border-2 border-yellow-500">
+            <svg className="w-12 h-12 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h2 className="text-3xl font-black text-white mb-4 tracking-tighter uppercase italic font-serif">Assinatura Confirmada!</h2>
-          <p className="text-slate-400 mb-10 font-medium text-lg">Seja bem-vindo à Yetomart. Prepare a pipoca, seu acesso já está liberado.</p>
+          <h2 className="text-3xl font-black text-white mb-4 tracking-tighter uppercase italic font-serif">Pedido Registado!</h2>
+          <p className="text-slate-400 mb-4 font-medium text-lg">O seu pedido foi registado com sucesso e está a aguardar a aprovação do produtor.</p>
+          <p className="text-slate-500 mb-10 font-medium text-sm">Assim que o produtor liberar o seu acesso, o produto ficará disponível no seu painel.</p>
           <button 
             onClick={() => navigate('/dashboard')}
             className="btn-brand btn-brand-lg btn-brand-full"
           >
-            Começar a Assistir
+            Ver Minha Lista
           </button>
         </div>
       </div>
@@ -140,7 +143,7 @@ const Checkout: React.FC = () => {
                   >
                     {loading ? (
                       <svg className="animate-spin h-6 w-6 mr-3 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    ) : `Assinar por Kz ${product.price.toFixed(2)}`}
+                    ) : `Assinar por Kz ${product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
                   </button>
                   <button 
                     type="button"
@@ -166,13 +169,13 @@ const Checkout: React.FC = () => {
                   <h4 className="font-black text-white text-base uppercase tracking-tighter italic line-clamp-1 font-serif">{product.title}</h4>
                   <span className="text-[10px] font-black text-yetomart-orange uppercase tracking-widest">{product.category}</span>
                 </div>
-                <span className="font-black text-white text-lg tracking-tighter">Kz {product.price.toFixed(2)}</span>
+                <span className="font-black text-white text-lg tracking-tighter">Kz {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
 
               <div className="space-y-4 border-t border-white/5 pt-8 mb-10">
                 <div className="flex justify-between text-sm font-bold">
                   <span className="text-slate-500 uppercase tracking-widest">Subtotal</span>
-                  <span className="text-white">Kz {product.price.toFixed(2)}</span>
+                   <span className="text-white">Kz {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold">
                   <span className="text-slate-500 uppercase tracking-widest">Taxas</span>
@@ -180,7 +183,7 @@ const Checkout: React.FC = () => {
                 </div>
                 <div className="flex justify-between text-2xl font-black pt-6 border-t border-white/10">
                   <span className="text-white uppercase tracking-tighter italic font-serif">Total</span>
-                  <span className="text-yetomart-orange tracking-tighter">Kz {product.price.toFixed(2)}</span>
+                   <span className="text-yetomart-orange tracking-tighter">Kz {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
 

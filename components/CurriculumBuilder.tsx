@@ -111,7 +111,7 @@ const CurriculumBuilder: React.FC<CurriculumBuilderProps> = ({ modules, onChange
                     />
                     <input 
                       type="text" 
-                      placeholder="ID do Vídeo (ex: YouTube/Vimeo ID)"
+                      placeholder="Link do Vídeo (YouTube, Vimeo ou MP4)"
                       value={lesson.videoUrl || ''}
                       onChange={(e) => updateLesson(module.id, lesson.id, { videoUrl: e.target.value })}
                       className="bg-transparent text-xs text-white/50 outline-none border-b border-white/10 focus:border-red-600 transition-colors py-1"

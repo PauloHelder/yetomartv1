@@ -17,6 +17,8 @@ interface AuthContextType {
   hasAccess: (productId: string) => boolean;
   purchaseProduct: (productId: string, amount: number) => Promise<boolean>;
   saveProduct: (productId: string) => Promise<void>;
+  updateProfile: (data: { name?: string; bio?: string; avatarUrl?: string }) => Promise<boolean>;
+  refreshProfile: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -32,9 +34,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const loadProfile = useCallback(async (userId: string, authUser: any): Promise<User | null> => {
     try {
       console.log('🔄 A carregar perfil para:', userId);
-      const [profileRes, purchasesRes, savedRes] = await Promise.all([
+      const [profileRes, purchasesRes, pendingRes, savedRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
         supabase.from('purchases').select('product_id').eq('user_id', userId).eq('status', 'completed'),
+        supabase.from('purchases').select('product_id').eq('user_id', userId).eq('status', 'pending'),
         supabase.from('saved_products').select('product_id').eq('user_id', userId),
       ]);
 
@@ -52,8 +55,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         email: profileData.email,
         role: profileData.role,
         purchasedIds: (purchasesRes.data ?? []).map((p: any) => p.product_id),
+        pendingIds: (pendingRes.data ?? []).map((p: any) => p.product_id),
         savedIds: (savedRes.data ?? []).map((s: any) => s.product_id),
         subscriptionActive: true,
+        bio: profileData.bio,
+        avatarUrl: profileData.avatar_url,
       };
     } catch (e) {
       console.error("❌ Erro ao carregar perfil:", e);
@@ -72,6 +78,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           email: session.user.email || '',
           role: session.user.user_metadata?.role || 'user',
           purchasedIds: [],
+          pendingIds: [],
           savedIds: [],
           subscriptionActive: true
         };
@@ -96,6 +103,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           email: session.user.email || '',
           role: session.user.user_metadata?.role || 'user',
           purchasedIds: [],
+          pendingIds: [],
           savedIds: [],
           subscriptionActive: true
         };
@@ -162,18 +170,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const purchaseProduct = useCallback(async (productId: string, amount: number): Promise<boolean> => {
     if (!user) return false;
-    const { error } = await supabase.from('purchases').upsert({
+    const { error } = await supabase.from('purchases').insert({
       user_id: user.id,
       product_id: productId,
       amount,
-      status: 'completed',
-    }, { onConflict: 'user_id,product_id' });
+      status: 'pending',
+    });
 
     if (error) return false;
 
     setUser(prev => prev ? ({
       ...prev,
-      purchasedIds: [...new Set([...prev.purchasedIds, productId])],
+      pendingIds: [...new Set([...(prev.pendingIds || []), productId])],
       savedIds: prev.savedIds.filter(id => id !== productId),
     }) : null);
     return true;
@@ -192,13 +200,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }) : null);
   }, [user]);
 
+  const updateProfile = useCallback(async (data: { name?: string; bio?: string; avatarUrl?: string }): Promise<boolean> => {
+    if (!user) return false;
+    
+    const { error } = await supabase.from('profiles').upsert({
+      id: user.id,
+      name: data.name || user.name,
+      bio: data.bio || user.bio,
+      avatar_url: data.avatarUrl || user.avatarUrl,
+      role: user.role,
+      email: user.email
+    });
+
+    if (error) return false;
+
+    setUser(prev => prev ? ({
+      ...prev,
+      name: data.name || prev.name,
+      bio: data.bio || prev.bio,
+      avatarUrl: data.avatarUrl || prev.avatarUrl
+    }) : null);
+    return true;
+  }, [user]);
+
   const clearError = useCallback(() => setAuthError(null), []);
+
+  const refreshProfile = useCallback(async () => {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      const fullProfile = await loadProfile(authUser.id, authUser);
+      if (fullProfile) setUser(fullProfile);
+    }
+  }, [loadProfile]);
 
   return (
     <AuthContext.Provider value={{
       user, isLoggedIn: !!user, loading, authError,
       login, register, logout,
-      hasAccess, purchaseProduct, saveProduct, clearError,
+      hasAccess, purchaseProduct, saveProduct, updateProfile, refreshProfile, clearError,
     }}>
       {children}
     </AuthContext.Provider>

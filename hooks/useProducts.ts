@@ -14,9 +14,34 @@ function mapProduct(row: any): Product {
     imageUrl: row.image_url ?? `https://picsum.photos/seed/${row.id}/600/400`,
     whatsappLink: row.whatsapp_link,
     ctaText: row.cta_text,
+    learningOutcomes: row.learning_outcomes ?? [],
+    pricingType: row.pricing_type ?? 'one-time',
+    producerId: row.producer_id,
+    instructor: row.profiles ? {
+      name: row.profiles.name,
+      bio: row.profiles.bio,
+      avatarUrl: row.profiles.avatar_url
+    } : undefined,
     contentCount: row.content_count ?? 0,
     status: row.status,
-    modules: row.modules ?? undefined,
+    modules: (row.modules ?? []).map((m: any) => ({
+      id: m.id,
+      title: m.title,
+      lessons: (m.lessons ?? []).map((l: any) => ({
+        id: l.id,
+        title: l.title,
+        duration: l.duration,
+        videoUrl: l.video_url,
+        description: l.description,
+        locked: l.is_locked,
+        attachments: (row.category === 'Ebook' && l.video_url) ? [{
+          id: 'attach-' + l.id,
+          name: 'Material do E-book',
+          url: l.video_url,
+          size: 'PDF'
+        }] : []
+      })),
+    })),
     quiz: row.quizzes?.[0] ? {
       id: row.quizzes[0].id,
       title: row.quizzes[0].title,
@@ -39,11 +64,7 @@ export function useProducts() {
     setLoading(true);
     const { data, error } = await supabase
       .from('products')
-      .select(`
-        *,
-        modules(*, lessons(*)),
-        quizzes(*, quiz_questions(*))
-      `)
+      .select('*')
       .eq('status', 'published')
       .order('created_at', { ascending: false });
 
@@ -52,22 +73,80 @@ export function useProducts() {
     return (data ?? []).map(mapProduct);
   }, []);
 
-  // Busca produto por ID com todos os detalhes
+  // Busca produto por ID com todos os detalhes (incluindo aulas)
   const fetchById = useCallback(async (id: string): Promise<Product | null> => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        *,
-        modules(*, lessons(*)),
-        quizzes(*, quiz_questions(*))
-      `)
-      .eq('id', id)
-      .single();
+    
+    try {
+      // 1. Busca os dados básicos do produto primeiro para evitar joins ambíguos
+      const { data: productData, error: productError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-    setLoading(false);
-    if (error || !data) { setError(error?.message ?? 'Not found'); return null; }
-    return mapProduct(data);
+      if (productError || !productData) {
+        setLoading(false);
+        return null;
+      }
+
+      // 2. Busca módulos
+      const { data: modulesData, error: mErr } = await supabase
+        .from('modules')
+        .select('*')
+        .eq('product_id', id)
+        .order('order_index', { ascending: true });
+
+      // 3. Busca aulas para todos os módulos encontrados
+      let lessonsData: any[] = [];
+      if (modulesData && modulesData.length > 0) {
+        const moduleIds = modulesData.map(m => m.id);
+        const { data: lRes, error: lErr } = await supabase
+          .from('lessons')
+          .select('*')
+          .in('module_id', moduleIds)
+          .order('order_index', { ascending: true });
+        
+        lessonsData = lRes || [];
+      }
+
+      // 4. Busca Quiz e Perguntas separadamente
+      const { data: quizData } = await supabase.from('quizzes').select('*').eq('product_id', id).single();
+      let quizQuestions: any[] = [];
+      if (quizData) {
+        const { data: qQuestRes } = await supabase.from('quiz_questions').select('*').eq('quiz_id', quizData.id).order('order_index', { ascending: true });
+        quizQuestions = qQuestRes || [];
+      }
+
+      // 5. Busca Perfil do Instrutor
+      const { data: profileData } = await supabase.from('profiles').select('name, bio, avatar_url').eq('id', productData.producer_id).single();
+
+      // Reconstrói a estrutura de módulos com aulas aninhadas
+      const modulesWithLessons = (modulesData || []).map(m => ({
+        ...m,
+        lessons: lessonsData.filter(l => l.module_id === m.id)
+      }));
+
+      // Consolida o Quiz
+      const consolidatedQuizzes = quizData ? [{
+        ...quizData,
+        quiz_questions: quizQuestions
+      }] : [];
+
+      const mapped = mapProduct({ 
+        ...productData, 
+        modules: modulesWithLessons, 
+        quizzes: consolidatedQuizzes,
+        profiles: profileData 
+      });
+
+      setLoading(false);
+      return mapped;
+    } catch (err: any) {
+      setError(err.message);
+      setLoading(false);
+      return null;
+    }
   }, []);
 
   // Busca produtos do produtor autenticado
@@ -78,7 +157,7 @@ export function useProducts() {
 
     const { data, error } = await supabase
       .from('products')
-      .select('*, modules(count), purchases(count)')
+      .select('*')
       .eq('producer_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -98,6 +177,7 @@ export function useProducts() {
       imageUrl?: string;
       whatsappLink?: string;
       ctaText?: string;
+      learningOutcomes: string[];
       modules: Module[];
       quiz: { title: string; questions: any[] };
     }
@@ -148,7 +228,7 @@ export function useProducts() {
             module_id: module.id,
             title: l.title,
             duration: l.duration,
-            video_url: l.videoUrl ?? null,
+            video_url: (l as any).attachments?.[0]?.url || l.videoUrl || null,
             order_index: lIdx,
             is_locked: l.locked ?? (lIdx > 0),
           }))
@@ -199,6 +279,7 @@ export function useProducts() {
       imageUrl?: string;
       whatsappLink?: string;
       ctaText?: string;
+      learningOutcomes: string[];
       modules: Module[];
       quiz: { title: string; questions: any[] };
     }
@@ -217,7 +298,7 @@ export function useProducts() {
         image_url: formData.imageUrl || undefined,
         whatsapp_link: formData.whatsappLink || null,
         cta_text: formData.ctaText || 'Comprar Agora',
-        content_count: formData.modules.reduce((acc, m) => acc + m.lessons.length, 0),
+        content_count: formData.modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0),
       })
       .eq('id', id);
 
@@ -227,9 +308,58 @@ export function useProducts() {
       return false;
     }
 
-    // Note: To keep things simple in a demo/trial, we simplify modules update
-    // In a real app, you'd perform a delta sync for modules and lessons.
-    // For now, let's assume we update the basic product info.
+    // 2. Atualizar Módulos e Aulas (Estratégia: Delete & Insert para simplificar sincronização)
+    // Remove módulos antigos (as FKs com cascade deletam as lessons)
+    await supabase.from('modules').delete().eq('product_id', id);
+
+    // Insere novos módulos
+    for (const [mIdx, mod] of formData.modules.entries()) {
+      const { data: module } = await supabase
+        .from('modules')
+        .insert({
+          product_id: id,
+          title: mod.title,
+          order_index: mIdx
+        })
+        .select()
+        .single();
+
+      if (module && mod.lessons?.length > 0) {
+        await supabase.from('lessons').insert(
+          mod.lessons.map((l, lIdx) => ({
+            module_id: module.id,
+            title: l.title,
+            duration: l.duration || '00:00',
+            video_url: (l as any).attachments?.[0]?.url || l.videoUrl || null,
+            order_index: lIdx,
+            is_locked: l.locked ?? (lIdx > 0),
+          }))
+        );
+      }
+    }
+
+    // 3. Atualizar Quiz (Delete & Insert)
+    await supabase.from('quizzes').delete().eq('product_id', id);
+    
+    if (formData.quiz.questions.length > 0) {
+      const { data: quiz } = await supabase
+        .from('quizzes')
+        .insert({ product_id: id, title: formData.quiz.title || 'Quiz Final' })
+        .select()
+        .single();
+
+      if (quiz) {
+        await supabase.from('quiz_questions').insert(
+          formData.quiz.questions.map((q, idx) => ({
+            quiz_id: quiz.id,
+            text: q.text,
+            options: q.options,
+            correct_option_index: q.correctOptionIndex,
+            order_index: idx,
+          }))
+        );
+      }
+    }
 
     setLoading(false);
     return true;

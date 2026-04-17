@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Category, Module } from '../types';
 import { useProducts } from '../hooks/useProducts';
 import CurriculumBuilder from '../components/CurriculumBuilder';
+import { useStorage } from '../hooks/useStorage';
 
 const EditProduct: React.FC = () => {
   const { id } = useParams();
@@ -11,6 +12,7 @@ const EditProduct: React.FC = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const { fetchById, updateProduct } = useProducts();
+  const { uploadEbook } = useStorage();
 
   // Form State
   const [formData, setFormData] = useState({
@@ -21,6 +23,7 @@ const EditProduct: React.FC = () => {
     pricingType: 'one-time', // one-time | subscription
     whatsappLink: '',
     ctaText: 'Comprar Agora',
+    learningOutcomes: [] as string[],
     image: null as File | null,
     ebookFile: null as File | null,
     modules: [] as Module[],
@@ -32,16 +35,20 @@ const EditProduct: React.FC = () => {
 
   useEffect(() => {
     if (id) {
+      console.log('EditProduct: buscando produto', id);
       fetchById(id).then(product => {
+        console.log('EditProduct: produto retornado', product ? product.title : 'null');
         if (product) {
+          console.log('EditProduct: carregando estado inicial', product);
           setFormData({
             title: product.title,
             description: product.description,
             category: product.category,
             price: product.price,
-            pricingType: 'one-time', // Configuração padrão
+            pricingType: (product as any).pricingType || 'one-time',
             whatsappLink: product.whatsappLink || '',
             ctaText: product.ctaText || 'Comprar Agora',
+            learningOutcomes: product.learningOutcomes || [],
             image: null,
             ebookFile: null,
             modules: product.modules || [],
@@ -54,6 +61,7 @@ const EditProduct: React.FC = () => {
             }
           });
         } else {
+          console.warn('EditProduct: produto não encontrado, navegando de volta');
           navigate('/producer');
         }
       });
@@ -99,6 +107,36 @@ const EditProduct: React.FC = () => {
     setLoading(true);
     
     try {
+      let finalModules = formData.category === Category.COURSE ? formData.modules : [];
+      if (formData.category === Category.EBOOK) {
+        if (formData.ebookFile) {
+          const fakeEbookId = 'temp-eb-' + Date.now();
+          const ebookUrl = await uploadEbook(formData.ebookFile, fakeEbookId);
+          if (ebookUrl) {
+            finalModules = [{
+              id: 'mod-ebook-' + Date.now(),
+              title: 'Seu E-book',
+              lessons: [{
+                id: 'les-ebook-' + Date.now(),
+                title: 'Baixe seu E-book Aqui',
+                duration: '00:00',
+                locked: false,
+                description: 'Clique na aba Materiais para fazer o download do seu E-book.',
+                attachments: [{
+                  id: 'att-ebook-' + Date.now(),
+                  name: formData.ebookFile.name,
+                  url: ebookUrl,
+                  size: (formData.ebookFile.size / 1024 / 1024).toFixed(1) + 'MB'
+                }]
+              }]
+            }];
+          }
+        } else {
+           // Se não enviou arquivo novo, a gente mantém os módulos existentes para Ebook
+           finalModules = formData.modules;
+        }
+      }
+
       const payload = {
         title: formData.title,
         description: formData.description,
@@ -107,7 +145,8 @@ const EditProduct: React.FC = () => {
         pricingType: formData.pricingType,
         whatsappLink: formData.whatsappLink,
         ctaText: formData.ctaText,
-        modules: formData.modules,
+        learningOutcomes: formData.learningOutcomes,
+        modules: finalModules,
         quiz: formData.quiz
       };
 
@@ -281,16 +320,32 @@ const EditProduct: React.FC = () => {
                   </div>
                   <h4 className="font-black text-white uppercase tracking-widest text-sm mb-2">Upload do Ebook (PDF)</h4>
                   <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-8">Tamanho máximo de 50MB</p>
-                  <input type="file" id="ebook" className="hidden" accept=".pdf" />
-                  <label htmlFor="ebook" className="cursor-pointer bg-yetomart-teal text-white px-10 py-4 rounded-sm text-xs font-black uppercase tracking-widest hover:bg-yetomart-teal/80 transition-all shadow-xl">Escolher arquivo</label>
+                  <input 
+                    type="file" 
+                    id="ebook" 
+                    className="hidden" 
+                    accept=".pdf" 
+                    onChange={e => {
+                      if (e.target.files && e.target.files[0]) {
+                        setFormData({ ...formData, ebookFile: e.target.files[0] });
+                      }
+                    }}
+                  />
+                  <label htmlFor="ebook" className="cursor-pointer bg-yetomart-teal text-white px-10 py-4 rounded-sm text-xs font-black uppercase tracking-widest hover:bg-yetomart-teal/80 transition-all shadow-xl">
+                    {formData.ebookFile ? formData.ebookFile.name : 'Escolher novo arquivo'}
+                  </label>
                 </div>
               )}
 
-              {formData.category === Category.COURSE && (
+              {(formData.category === Category.COURSE || formData.category === Category.SUBSCRIPTION) ? (
                 <CurriculumBuilder 
-                  modules={formData.modules} 
+                  modules={formData.modules || []} 
                   onChange={(modules) => setFormData({ ...formData, modules })} 
                 />
+              ) : (
+                formData.category !== Category.EBOOK && (
+                  <p className="text-slate-500 italic text-sm">Estrutura de conteúdo não disponível para esta categoria.</p>
+                )
               )}
 
               {formData.category === Category.SUBSCRIPTION && (

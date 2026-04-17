@@ -2,24 +2,32 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
+import { useProgress } from '../hooks/useProgress';
 import { Product } from '../types';
 import { useAuth } from '../context/AuthContext';
 import Paywall from '../components/Paywall';
 import QuizPlayer from '../components/QuizPlayer';
+import VideoPlayer from '../components/VideoPlayer';
 
 const MembersArea: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { hasAccess, isLoggedIn } = useAuth();
+  const { hasAccess, isLoggedIn, user } = useAuth();
   const { fetchById } = useProducts();
+  const { fetchProgress, toggleLesson } = useProgress();
   
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [completedIds, setCompletedIds] = useState<string[]>([]);
   
   useEffect(() => {
     if (id) {
-      fetchById(id).then(data => {
+      Promise.all([
+        fetchById(id),
+        fetchProgress(id)
+      ]).then(([data, progress]) => {
         setProduct(data);
+        setCompletedIds(progress || []);
         if (data?.modules) {
           const lesions = data.modules.flatMap(m => m.lessons);
           if (lesions[0]) setCurrentLesson(lesions[0]);
@@ -27,7 +35,7 @@ const MembersArea: React.FC = () => {
         setLoading(false);
       });
     }
-  }, [id, fetchById]);
+  }, [id, fetchById, fetchProgress]);
 
   // Get all lessons from product modules
   const allLessons = product?.modules?.flatMap(m => m.lessons) || [];
@@ -39,9 +47,9 @@ const MembersArea: React.FC = () => {
 
   if (loading) return <div className="bg-[#0f172a] min-h-screen text-white p-20 text-center">Carregando área de membros...</div>;
   if (!product) return null;
-  const access = hasAccess(product.id);
+  const access = hasAccess(product.id) || (user?.id === product.producerId);
 
-  const currentLessonIndex = allLessons.findIndex(l => l.id === currentLesson.id);
+  const currentLessonIndex = allLessons.findIndex(l => l.id === currentLesson?.id);
   const nextLesson = allLessons[currentLessonIndex + 1];
   const prevLesson = allLessons[currentLessonIndex - 1];
 
@@ -63,6 +71,24 @@ const MembersArea: React.FC = () => {
     }
   };
 
+  const isCompleted = (lessonId: string) => completedIds.includes(lessonId);
+  
+  const handleToggleComplete = async () => {
+    if (!currentLesson) return;
+    const currentlyDone = isCompleted(currentLesson.id);
+    await toggleLesson(currentLesson.id, !currentlyDone);
+    
+    setCompletedIds(prev => 
+      currentlyDone 
+        ? prev.filter(id => id !== currentLesson.id) 
+        : [...prev, currentLesson.id]
+    );
+  };
+
+  const progressPercentage = allLessons.length > 0 
+    ? Math.round((completedIds.length / allLessons.length) * 100) 
+    : 0;
+
   return (
     <div className="bg-[#0f172a] min-h-screen flex flex-col h-screen overflow-hidden text-white">
       {/* Header Superior Profissional */}
@@ -82,28 +108,119 @@ const MembersArea: React.FC = () => {
         </div>
         
         <div className="flex items-center space-x-2 sm:space-x-6">
-           <div className="hidden md:flex flex-col items-end mr-4">
-              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Seu Progresso</span>
-              <div className="flex items-center space-x-3">
-                 <div className="w-24 sm:w-32 bg-white/10 h-1 rounded-full">
-                    <div className="bg-yetomart-orange h-full w-[45%] rounded-full shadow-[0_0_10px_rgba(244,162,97,0.5)]"></div>
-                 </div>
-                 <span className="text-[10px] font-black text-white">45%</span>
-              </div>
-           </div>
-           <button className="btn-brand">
-             Concluir Aula
-           </button>
-           <button 
-             onClick={() => setSidebarOpen(!sidebarOpen)}
-             className="lg:hidden p-2 text-white hover:bg-white/10 rounded-sm transition-colors"
-           >
-             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
-           </button>
+          {product.category !== 'Ebook' ? (
+            <>
+              <div className="hidden md:flex flex-col items-end mr-4">
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Seu Progresso</span>
+                <div className="flex items-center space-x-3">
+                   <div className="w-24 sm:w-32 bg-white/10 h-1 rounded-full">
+                      <div 
+                        className="bg-yetomart-orange h-full rounded-full shadow-[0_0_10px_rgba(244,162,97,0.5)] transition-all duration-500" 
+                        style={{ width: `${progressPercentage}%` }}
+                      ></div>
+                   </div>
+                   <span className="text-[10px] font-black text-white">{progressPercentage}%</span>
+                </div>
+             </div>
+             <button 
+               onClick={handleToggleComplete}
+               className={`px-4 py-2 rounded-sm text-[10px] font-black uppercase tracking-widest transition-all border ${
+                 isCompleted(currentLesson?.id) 
+                   ? 'bg-green-600/10 text-green-500 border-green-600/20' 
+                   : 'bg-yetomart-orange text-yetomart-gray border-yetomart-orange hover:bg-white'
+               }`}
+             >
+               {isCompleted(currentLesson?.id) ? '✓ Concluído' : 'Concluir Aula'}
+             </button>
+             <button 
+               onClick={() => setSidebarOpen(!sidebarOpen)}
+               className="lg:hidden p-2 text-white hover:bg-white/10 rounded-sm transition-colors"
+             >
+               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
+             </button>
+            </>
+          ) : (
+             <div className="px-4 py-2 bg-yetomart-teal/20 text-yetomart-teal rounded-sm text-[10px] font-black uppercase tracking-widest border border-yetomart-teal/30">
+               E-book Verificado
+             </div>
+          )}
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden relative">
+      {product.category === 'Ebook' ? (
+        <main className="flex-1 overflow-y-auto custom-scrollbar flex items-center justify-center p-6 sm:p-12 relative bg-[#0f172a]">
+          {/* Fundo dinâmico com blur */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-yetomart-orange opacity-10 rounded-full blur-[100px] animate-pulse"></div>
+            <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-yetomart-teal opacity-5 rounded-full blur-[120px]"></div>
+          </div>
+          
+          <div className="max-w-6xl w-full flex flex-col lg:flex-row items-center gap-16 relative z-10">
+            
+            {/* Esquerda: Capa do Ebook */}
+            <div className="w-full lg:w-5/12 flex flex-col items-center">
+              <div className="relative group">
+                <div className="absolute -inset-4 bg-gradient-to-r from-yetomart-orange to-yetomart-teal opacity-20 blur-2xl rounded-2xl group-hover:opacity-40 transition-opacity duration-500"></div>
+                <img 
+                  src={product.imageUrl} 
+                  alt={product.title} 
+                  className="relative w-full max-w-[350px] object-cover aspect-[3/4] rounded-sm shadow-[20px_20px_60px_rgba(0,0,0,0.6)] border border-white/10 transform transition-transform duration-500 group-hover:scale-105"
+                />
+              </div>
+            </div>
+
+            {/* Direita: Info e Ação de Download */}
+            <div className="w-full lg:w-7/12 flex flex-col items-start text-left">
+              <div className="inline-block px-3 py-1 bg-white/5 border border-white/10 text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] rounded-sm mb-6">
+                Material de Estudo
+              </div>
+              <h2 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tighter italic font-serif mb-6 leading-none">
+                {product.title}
+              </h2>
+              <p className="text-lg text-slate-400 mb-12 font-medium leading-relaxed max-w-2xl">
+                {product.description || "O seu material exclusivo está pronto. Clique no botão abaixo para baixar o ficheiro PDF e começar a sua leitura agora mesmo."}
+              </p>
+
+              {currentLesson?.attachments && currentLesson.attachments.length > 0 ? (
+                <div className="w-full relative mt-4">
+                  <Paywall hasAccess={access} productId={product.id}>
+                    <div className="w-full flex flex-col sm:flex-row gap-4">
+                      {currentLesson.attachments.map((att: any) => (
+                        <a 
+                          key={att.id}
+                          href={att.url} 
+                          download 
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-10 py-5 bg-gradient-to-r from-yetomart-orange to-[#e65c40] text-white font-black uppercase tracking-[0.2em] text-sm md:text-base rounded-sm hover:scale-105 transition-all shadow-[0_10px_30px_rgba(244,162,97,0.4)] hover:shadow-[0_15px_40px_rgba(244,162,97,0.6)] flex items-center justify-center w-full sm:w-auto"
+                        >
+                          <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                          Baixar {att.name || "E-book"}
+                        </a>
+                      ))}
+                      <button onClick={handleToggleComplete} className={`px-10 py-5 font-black uppercase tracking-[0.2em] text-sm md:text-base rounded-sm transition-all border flex items-center justify-center w-full sm:w-auto ${
+                         isCompleted(currentLesson?.id) 
+                           ? 'bg-green-600/10 text-green-500 border-green-600/20' 
+                           : 'bg-transparent text-slate-400 border-white/20 hover:bg-white/5 hover:text-white'
+                       }`}>
+                        {isCompleted(currentLesson?.id) ? '✓ Leitura Concluída' : 'Marcar como Lido'}
+                      </button>
+                    </div>
+                  </Paywall>
+                </div>
+              ) : (
+                <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-sm w-full">
+                  <p className="text-red-400 font-bold flex items-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    O ficheiro PDF ainda não foi anexado a este E-book.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </main>
+      ) : (
+        <div className="flex-1 flex overflow-hidden relative">
         {/* Lado Esquerdo: Player e Detalhes */}
         <main className={`flex-1 overflow-y-auto custom-scrollbar bg-[#0f172a] transition-all duration-300 ${sidebarOpen ? 'lg:mr-0' : ''}`}>
           <div className="p-0 md:p-8 max-w-5xl mx-auto">
@@ -114,12 +231,9 @@ const MembersArea: React.FC = () => {
                 <div className="group relative">
                   <div className="aspect-video bg-black rounded-none md:rounded-sm overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative mb-10 border border-white/5">
                     <Paywall hasAccess={!currentLesson?.locked || access} productId={product.id}>
-                      <video 
-                        key={currentLesson?.id}
-                        className="w-full h-full" 
-                        controls 
-                        autoPlay
-                        src={currentLesson?.videoUrl}
+                      <VideoPlayer 
+                        url={currentLesson?.videoUrl || ''} 
+                        title={currentLesson?.title}
                       />
                     </Paywall>
                   </div>
@@ -273,9 +387,11 @@ const MembersArea: React.FC = () => {
                       {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-yetomart-coral shadow-[0_0_10px_rgba(231,111,81,0.8)]"></div>}
                       
                       <div className={`mt-1 flex-shrink-0 w-7 h-7 rounded-sm border flex items-center justify-center transition-all duration-300 ${
-                        isActive ? 'bg-yetomart-coral border-yetomart-coral text-white shadow-[0_0_15px_rgba(231,111,81,0.4)]' : 'border-white/10 text-white/30 group-hover:border-white/30 group-hover:text-white'
+                        isActive ? 'bg-yetomart-coral border-yetomart-coral text-white shadow-[0_0_15px_rgba(231,111,81,0.4)]' : 
+                        isCompleted(lesson.id) ? 'bg-green-600/20 border-green-600/40 text-green-500' :
+                        'border-white/10 text-white/30 group-hover:border-white/30 group-hover:text-white'
                       }`}>
-                        {isActive ? (
+                        {isCompleted(lesson.id) ? (
                           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                         ) : (
                           <span className="text-[10px] font-black italic">{lIdx + 1}</span>
@@ -343,6 +459,7 @@ const MembersArea: React.FC = () => {
           </div>
         </aside>
       </div>
+      )}
 
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes fadeIn {

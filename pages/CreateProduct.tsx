@@ -11,7 +11,7 @@ const CreateProduct: React.FC = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const { createProduct, error: productError } = useProducts();
-  const { uploadCover, uploadError } = useStorage();
+  const { uploadCover, uploadEbook, uploadError } = useStorage();
 
   // Form State
   const [formData, setFormData] = useState({
@@ -22,6 +22,7 @@ const CreateProduct: React.FC = () => {
     pricingType: 'one-time', // one-time | subscription
     whatsappLink: '',
     ctaText: 'Comprar Agora',
+    learningOutcomes: [] as string[],
     image: null as File | null,
     ebookFile: null as File | null,
     modules: [] as Module[],
@@ -81,6 +82,32 @@ const CreateProduct: React.FC = () => {
         if (url) coverUrl = url;
       }
 
+      // Se for E-book, faz o upload e cria um módulo especial
+      let finalModules = formData.category === Category.COURSE ? formData.modules : [];
+      if (formData.category === Category.EBOOK && formData.ebookFile) {
+        const fakeEbookId = 'temp-eb-' + Date.now();
+        const ebookUrl = await uploadEbook(formData.ebookFile, fakeEbookId);
+        if (ebookUrl) {
+          finalModules = [{
+            id: 'mod-ebook-' + Date.now(),
+            title: 'Seu E-book',
+            lessons: [{
+              id: 'les-ebook-' + Date.now(),
+              title: 'Baixe seu E-book Aqui',
+              duration: '00:00',
+              locked: false,
+              description: 'Clique na aba Materiais para fazer o download do seu E-book.',
+              attachments: [{
+                id: 'att-ebook-' + Date.now(),
+                name: formData.ebookFile.name,
+                url: ebookUrl,
+                size: (formData.ebookFile.size / 1024 / 1024).toFixed(1) + 'MB'
+              }]
+            }]
+          }];
+        }
+      }
+
       const payload = {
         title: formData.title,
         description: formData.description,
@@ -89,8 +116,9 @@ const CreateProduct: React.FC = () => {
         pricingType: formData.pricingType,
         whatsappLink: formData.whatsappLink,
         ctaText: formData.ctaText,
+        learningOutcomes: formData.learningOutcomes,
         imageUrl: coverUrl,
-        modules: formData.category === Category.COURSE ? formData.modules : [],
+        modules: finalModules,
         quiz: formData.quiz
       };
 
@@ -274,6 +302,49 @@ const CreateProduct: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              <div className="space-y-6 pt-6 border-t border-white/5">
+                <div className="flex justify-between items-end">
+                  <h3 className="text-sm font-black text-white uppercase tracking-widest italic font-serif">O que o aluno vai aprender</h3>
+                  <button 
+                    type="button" 
+                    onClick={() => setFormData({ ...formData, learningOutcomes: [...formData.learningOutcomes, ''] })}
+                    className="text-[10px] font-black text-yetomart-teal uppercase tracking-widest hover:underline"
+                  >
+                    + Adicionar Tópico
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {formData.learningOutcomes.map((outcome, idx) => (
+                    <div key={idx} className="flex gap-4">
+                      <input 
+                        type="text" 
+                        value={outcome}
+                        onChange={e => {
+                          const newOutcomes = [...formData.learningOutcomes];
+                          newOutcomes[idx] = e.target.value;
+                          setFormData({ ...formData, learningOutcomes: newOutcomes });
+                        }}
+                        className="flex-1 bg-white/5 p-4 rounded-sm border border-white/10 outline-none focus:border-yetomart-teal transition-all text-white text-xs" 
+                        placeholder={`Tópico ${idx + 1}...`}
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const newOutcomes = formData.learningOutcomes.filter((_, i) => i !== idx);
+                          setFormData({ ...formData, learningOutcomes: newOutcomes });
+                        }}
+                        className="text-slate-600 hover:text-red-500 transition-colors"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </div>
+                  ))}
+                  {formData.learningOutcomes.length === 0 && (
+                    <p className="text-[10px] text-slate-600 italic">Clique em adicionar para listar os benefícios do curso.</p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -288,8 +359,20 @@ const CreateProduct: React.FC = () => {
                   </div>
                   <h4 className="font-black text-white uppercase tracking-widest text-sm mb-2">Upload do Ebook (PDF)</h4>
                   <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-8">Tamanho máximo de 50MB</p>
-                  <input type="file" id="ebook" className="hidden" accept=".pdf" />
-                  <label htmlFor="ebook" className="cursor-pointer bg-yetomart-teal text-white px-10 py-4 rounded-sm text-xs font-black uppercase tracking-widest hover:bg-yetomart-teal/80 transition-all shadow-xl">Escolher arquivo</label>
+                  <input 
+                    type="file" 
+                    id="ebook" 
+                    className="hidden" 
+                    accept=".pdf" 
+                    onChange={e => {
+                      if (e.target.files && e.target.files[0]) {
+                        setFormData({ ...formData, ebookFile: e.target.files[0] });
+                      }
+                    }}
+                  />
+                  <label htmlFor="ebook" className="cursor-pointer bg-yetomart-teal text-white px-10 py-4 rounded-sm text-xs font-black uppercase tracking-widest hover:bg-yetomart-teal/80 transition-all shadow-xl">
+                    {formData.ebookFile ? formData.ebookFile.name : 'Escolher arquivo'}
+                  </label>
                 </div>
               )}
 

@@ -1,7 +1,8 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Product, Category } from '../types';
 import { useNavigate } from 'react-router-dom';
+import PurchaseModal from './PurchaseModal';
 
 interface OffcanvasProps {
   product: Product | null;
@@ -10,10 +11,15 @@ interface OffcanvasProps {
 
 const Offcanvas: React.FC<OffcanvasProps> = ({ product, onClose }) => {
   const navigate = useNavigate();
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  
   if (!product) return null;
 
   return (
     <>
+      {showPurchaseModal && (
+        <PurchaseModal product={product} onClose={() => setShowPurchaseModal(false)} />
+      )}
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 transition-opacity" onClick={onClose}></div>
       
@@ -52,13 +58,13 @@ const Offcanvas: React.FC<OffcanvasProps> = ({ product, onClose }) => {
           <div className="flex items-end justify-between mb-8">
             <div className="flex flex-col">
               <span className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-1">Investimento Único</span>
-              <span className="text-4xl font-black text-white italic tracking-tighter font-serif">Kz {product.price.toFixed(2)}</span>
+              <span className="text-4xl font-black text-white italic tracking-tighter font-serif">Kz {product.price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="text-yetomart-orange text-xs font-black uppercase tracking-tighter">Acesso Vitalício</div>
           </div>
           <div className="grid grid-cols-1 gap-4">
             <button 
-              onClick={() => navigate(`/checkout/${product.id}`)}
+              onClick={() => setShowPurchaseModal(true)}
               className="w-full bg-yetomart-teal text-white py-5 rounded-sm font-black uppercase tracking-[0.2em] hover:bg-yetomart-teal/80 transition-all duration-300 shadow-xl active:scale-95"
             >
               Começar Agora

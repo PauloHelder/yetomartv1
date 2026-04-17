@@ -22,12 +22,12 @@ const Paywall: React.FC<PaywallProps> = ({ hasAccess, productId, children }) => 
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
         </div>
-        <h3 className="text-3xl font-black text-white mb-3 uppercase tracking-tighter italic font-serif">Conteúdo Premium</h3>
+        <h3 className="text-3xl font-black text-white mb-3 uppercase tracking-tighter italic font-serif">Acesso Restrito</h3>
         <p className="text-white/60 max-w-sm mb-8 font-medium leading-relaxed">
-          Esta aula é exclusiva para membros. Adquira o acesso vitalício para desbloquear este e todos os outros módulos agora mesmo.
+          Esta aula é exclusiva para membros. Adquira o acesso vitalício para desbloquear o conteúdo agora mesmo.
         </p>
         <Link 
-          to={`/checkout/${productId}`}
+          to={`/product/${productId}`}
           className="bg-yetomart-teal text-white px-12 py-4 rounded-sm font-black uppercase tracking-[0.2em] hover:bg-yetomart-teal/80 transition-all duration-300 shadow-xl active:scale-95"
         >
           Desbloquear Agora

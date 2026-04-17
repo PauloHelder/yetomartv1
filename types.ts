@@ -27,6 +27,13 @@ export interface Product {
   imageUrl: string;
   whatsappLink?: string;
   ctaText?: string;
+  producerId?: string;
+  learningOutcomes?: string[];
+  instructor?: {
+    name: string;
+    bio?: string;
+    avatarUrl?: string;
+  };
   contentCount?: number;
   status?: 'published' | 'draft' | 'archived';
   modules?: Module[];
@@ -38,9 +45,12 @@ export interface User {
   name: string;
   email: string;
   purchasedIds: string[];
+  pendingIds: string[];
   savedIds: string[];
   subscriptionActive: boolean;
   role: 'user' | 'producer';
+  bio?: string;
+  avatarUrl?: string;
 }
 
 export interface Attachment {
